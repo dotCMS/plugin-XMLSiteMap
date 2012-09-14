@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Deploy-Class: org.dotcms.plugins.XMLSitemap.deployer.XMLSitemapPluginDeployer
+Plugin-Version: 1.0
+Author: dotCMS
+Plugin-Name: XML Site Map
