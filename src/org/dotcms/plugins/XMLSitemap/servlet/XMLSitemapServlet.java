@@ -2,6 +2,8 @@ package org.dotcms.plugins.XMLSitemap.servlet;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.ServletOutputStream;
@@ -10,10 +12,14 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.dotmarketing.beans.Host;
+import com.dotmarketing.beans.Identifier;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.business.UserAPI;
 import com.dotmarketing.business.web.HostWebAPI;
 import com.dotmarketing.business.web.HostWebAPIImpl;
+import com.dotmarketing.portlets.contentlet.business.ContentletAPI;
+import com.dotmarketing.portlets.contentlet.model.Contentlet;
+import com.dotmarketing.portlets.fileassets.business.FileAssetAPI;
 import com.dotmarketing.portlets.files.model.File;
 import com.dotmarketing.portlets.folders.business.FolderAPI;
 import com.dotmarketing.portlets.folders.model.Folder;
@@ -28,6 +34,7 @@ public class XMLSitemapServlet extends HttpServlet {
 	
 	private FolderAPI folderAPI = APILocator.getFolderAPI();
 	private UserAPI userAPI = APILocator.getUserAPI();
+	private ContentletAPI conAPI = APILocator.getContentletAPI();
 	
 	public void init(ServletConfig config) throws ServletException {
 
@@ -48,28 +55,28 @@ public class XMLSitemapServlet extends HttpServlet {
 			HostWebAPI hostWebAPI = new HostWebAPIImpl();
 			Host host = hostWebAPI.getCurrentHost(request);
 			String hostId = host.getIdentifier();
-			java.util.List<File> itemsList = new ArrayList<File>();
+			List<Contentlet> itemsList = new ArrayList<Contentlet>();
 
 			
 			Folder folder = folderAPI.findFolderByPath(APILocator.getPluginAPI().loadProperty("org.dotcms.plugins.XMLSitemap", "org.dotcms.plugins.XMLSitemap.XML_SITEMAPS_FOLDER"), hostId, userAPI.getSystemUser(), true);
-			itemsList = folderAPI.getLiveFiles(folder, userAPI.getSystemUser(), true);
+			itemsList = conAPI.findContentletsByFolder(folder, userAPI.getSystemUser(), false);
 
 			if(itemsList.size() > 0){
 				StringBuilder sitemapIndex =  new StringBuilder();
 				sitemapIndex.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
 				sitemapIndex.append("<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/siteindex.xsd\">");
 
-				for (File itemChild : itemsList) {
-					
-					if (itemChild instanceof File) {
-						File file = (File) itemChild;
-						if (file.isWorking() && !file.isDeleted()) {
+				for (Contentlet itemChild : itemsList) {
+						if (itemChild.isWorking() && !itemChild.isArchived()) {
+							Identifier identifier = APILocator.getIdentifierAPI().find(itemChild);
 							sitemapIndex.append("<sitemap>");
-							sitemapIndex.append("<loc>"+XMLUtils.xmlEscape("http://www."+host.getHostname()+file.getURI())+"</loc>");
-							sitemapIndex.append("<lastmod>"+UtilMethods.dateToHTMLDate(file.getModDate(), "yyyy-MM-dd")+"</lastmod>");
+							sitemapIndex.append("<loc>"+ XMLUtils.xmlEscape("http://www."
+									+ host.getHostname()
+									+ UtilMethods.encodeURIComponent(identifier.getParentPath()+itemChild.getStringProperty(FileAssetAPI.FILE_NAME_FIELD)))
+							+ "</loc>");
+							sitemapIndex.append("<lastmod>"+UtilMethods.dateToHTMLDate(itemChild.getModDate(), "yyyy-MM-dd")+"</lastmod>");
 							sitemapIndex.append("</sitemap>");
 						}
-					}
 				}
 
 				sitemapIndex.append("</sitemapindex>");

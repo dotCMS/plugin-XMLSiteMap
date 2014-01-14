@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -19,11 +20,16 @@ import org.quartz.JobExecutionException;
 import com.dotmarketing.beans.Host;
 import com.dotmarketing.beans.Identifier;
 import com.dotmarketing.beans.Inode;
+import com.dotmarketing.beans.WebAsset;
 import com.dotmarketing.business.APILocator;
+import com.dotmarketing.business.CacheLocator;
 import com.dotmarketing.business.FactoryLocator;
 import com.dotmarketing.business.IdentifierAPI;
+import com.dotmarketing.business.PermissionAPI;
+import com.dotmarketing.business.Permissionable;
 import com.dotmarketing.business.UserAPI;
 import com.dotmarketing.cache.LiveCache;
+import com.dotmarketing.cache.StructureCache;
 import com.dotmarketing.cache.WorkingCache;
 import com.dotmarketing.exception.DotDataException;
 import com.dotmarketing.exception.DotSecurityException;
@@ -32,6 +38,8 @@ import com.dotmarketing.plugin.business.PluginAPI;
 import com.dotmarketing.portlets.contentlet.business.ContentletAPI;
 import com.dotmarketing.portlets.contentlet.business.HostAPI;
 import com.dotmarketing.portlets.contentlet.model.Contentlet;
+import com.dotmarketing.portlets.fileassets.business.FileAsset;
+import com.dotmarketing.portlets.fileassets.business.FileAssetAPI;
 import com.dotmarketing.portlets.files.business.FileAPI;
 import com.dotmarketing.portlets.files.business.FileFactory;
 import com.dotmarketing.portlets.folders.business.FolderAPI;
@@ -81,6 +89,7 @@ public class XMLSitemapThread implements Job {
 	private UserAPI userAPI = APILocator.getUserAPI();
 	private HostAPI hostAPI = APILocator.getHostAPI();
 	private PluginAPI pluginAPI = APILocator.getPluginAPI();
+	private FileAssetAPI fileAssetAPI = APILocator.getFileAssetAPI();
 	private boolean usePermalinks = false;
 	private boolean useStructureURLMap = true;
 	private String changeFrequencyConfig = "daily";
@@ -181,6 +190,9 @@ public class XMLSitemapThread implements Job {
 				.getAllVelocityVariablesNames();
 
 		for (Host host : hostsList) {
+			
+			if(host.isSystemHost())
+				continue;
 
 			processedRegistries = 0;
 			currentHost = host;
@@ -383,7 +395,7 @@ public class XMLSitemapThread implements Job {
 				if (itemsList2.size() > 0) {
 
 					// /FIRST LEVEL MENU ITEMS!!!!
-					for (Inode itemChild : itemsList) {
+					for (Permissionable itemChild : itemsList) {
 
 						if (itemChild instanceof Folder) {
 
@@ -436,6 +448,20 @@ public class XMLSitemapThread implements Job {
 										+ XMLUtils.xmlEscape("http://www."
 												+ host.getHostname()
 												+ file.getURI())
+										+ "</loc><lastmod>"
+										+ modifiedDateStringValue
+										+ "</lastmod><changefreq>daily</changefreq></url>\n";
+								writeFile(stringbuf);
+								addRegistryProcessed();
+							}
+						} else if (itemChild instanceof Contentlet) {
+							Contentlet fileContent = (Contentlet)itemChild;
+							if (fileContent.isLive() && !fileContent.isArchived()) {
+								Identifier identifier = APILocator.getIdentifierAPI().find(fileContent);
+								stringbuf = "<url><loc>"
+										+ XMLUtils.xmlEscape("http://www."
+												+ host.getHostname()
+												+ UtilMethods.encodeURIComponent(identifier.getParentPath()+fileContent.getStringProperty(FileAssetAPI.FILE_NAME_FIELD)))
 										+ "</loc><lastmod>"
 										+ modifiedDateStringValue
 										+ "</lastmod><changefreq>daily</changefreq></url>\n";
@@ -527,7 +553,7 @@ public class XMLSitemapThread implements Job {
 
 		if (currentLevel < numberOfLevels) {
 
-			for (Inode childChild2 : itemsChildrenList2) {
+			for (Permissionable childChild2 : itemsChildrenList2) {
 				if (childChild2 instanceof Folder) {
 					Folder folderChildChild2 = (Folder) childChild2;
 					Identifier childChild2Ident = identAPI
@@ -609,6 +635,20 @@ public class XMLSitemapThread implements Job {
 						writeFile(stringbuf);
 						addRegistryProcessed();
 					}
+				} else if (childChild2 instanceof Contentlet) {
+					Contentlet fileContent = (Contentlet)childChild2;
+					if (fileContent.isLive() && !fileContent.isArchived()) {
+						Identifier identifier = APILocator.getIdentifierAPI().find(fileContent);
+						stringbuf = "<url><loc>"
+								+ XMLUtils.xmlEscape("http://www."
+										+ host.getHostname()
+										+ UtilMethods.encodeURIComponent(identifier.getParentPath()+fileContent.getStringProperty(FileAssetAPI.FILE_NAME_FIELD)))
+								+ "</loc><lastmod>"
+								+ modifiedDateStringValue
+								+ "</lastmod><changefreq>daily</changefreq></url>\n";
+						writeFile(stringbuf);
+						addRegistryProcessed();
+					}
 				}
 			}
 		}
@@ -650,9 +690,12 @@ public class XMLSitemapThread implements Job {
 			out.close();
 
 			/******* Begin Generate compressed file *****************************/
+			String dateCounter = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+									+""+Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+									+""+Calendar.getInstance().get(Calendar.MINUTE);
 			String sitemapName = pluginAPI.loadProperty(pluginId,
 					"org.dotcms.plugins.XMLSitemap.SITEMAP_XML_GZ_FILENAME")
-					+ counter + ".xml.gz";
+					+ dateCounter + counter + ".xml.gz";
 			compressedFile = new File(sitemapName);
 			GZIPOutputStream gout = new GZIPOutputStream(new FileOutputStream(
 					compressedFile));
@@ -682,72 +725,23 @@ public class XMLSitemapThread implements Job {
 				folder = folderAPI.createFolders(XML_SITEMAPS_FOLDER,
 						currentHost, systemUser, true);
 			}
-
-			// GetPrevious version if exists
-			com.dotmarketing.portlets.files.model.File currentFile = new com.dotmarketing.portlets.files.model.File();
 			
 			java.io.File uploadedFile = new java.io.File(sitemapName);
-
-			try {
-				currentFile = fileAPI.getFileByURI(XML_SITEMAPS_FOLDER
-						+ sitemapName, currentHost, true, systemUser, false);
-			} catch (Exception e) {
-				// Previous file not found.
-				Logger.warn(this,
-						"No XMLSiteMap File were found in this host. Creating..."
-								+ (XML_SITEMAPS_FOLDER + sitemapName));
-
-			}
-			// Create the new file version
-			com.dotmarketing.portlets.files.model.File file = new com.dotmarketing.portlets.files.model.File();
-			file.setFileName(sitemapName);
-			file.setFriendlyName(UtilMethods.getFileName(sitemapName));
-			file.setTitle(UtilMethods.getFileName(sitemapName));
-			file.setMimeType(fileAPI.getMimeType(sitemapName));
-			file.setOwner(systemUser.getUserId());
-			file.setModUser(systemUser.getUserId());
-			file.setModDate(new Date());
-
-			file.setParent(folder.getIdentifier());
-			file.setSize((int) compressedFile.length());
-
-			file = fileAPI.saveFile(file, uploadedFile, folder, systemUser,
-					true);
+			// Create the new file
+			Contentlet file = new Contentlet();
+			file.setStructureInode(folder.getDefaultFileType());
+			file.setStringProperty(FileAssetAPI.TITLE_FIELD, UtilMethods.getFileName(sitemapName));
+			file.setFolder(folder.getInode());
+			file.setHost(currentHost.getIdentifier());
+			file.setBinary(FileAssetAPI.BINARY_FIELD, uploadedFile);
+			if(StructureCache.getStructureByInode(file.getStructureInode()).getStructureType() == Structure.STRUCTURE_TYPE_FILEASSET)
+				file.setStringProperty("fileName", sitemapName);
+			file = APILocator.getContentletAPI().checkin(file, systemUser,false);
+			if(APILocator.getPermissionAPI().doesUserHavePermission(file, PermissionAPI.PERMISSION_PUBLISH, systemUser))
+				APILocator.getVersionableAPI().setLive(file);
 			APILocator.getVersionableAPI().setWorking(file);
-			APILocator.getVersionableAPI().setLive(file);
-
-			ffac.deleteFromCache(file);
-			// get the file Identifier
-			Identifier ident = null;
-			if (UtilMethods.isSet(currentFile.getIdentifier())) {
-				ident = identAPI.loadFromCache(currentFile);
-				ffac.deleteFromCache(currentFile);
-			} else {
-				ident = new Identifier();
-			}
-			// Saving the file, this creates the new version and save the new
-			// data
-			com.dotmarketing.portlets.files.model.File workingFile = null;
-			workingFile = fileAPI.saveFile(file, compressedFile, folder,
-					systemUser, true);
-
-			ffac.deleteFromCache(workingFile);
-			ident = identAPI.loadFromCache(workingFile);
-
-			// updating caches
-			if (workingFile.isLive()) {
-				LiveCache.removeAssetFromCache(workingFile);
-				LiveCache.addToLiveAssetToCache(workingFile);
-			} else {
-				LiveCache.removeAssetFromCache(file);
-				LiveCache.addToLiveAssetToCache(file);
-			}
-			WorkingCache.removeAssetFromCache(workingFile);
-			WorkingCache.addToWorkingAssetToCache(workingFile);
-
-			// Publish the File
-			PublishFactory.publishAsset(workingFile, systemUser, false);
-
+			
+			
 		} catch (Exception e) {
 			Logger.error(this, e.getMessage(), e);
 		} finally {
@@ -802,15 +796,22 @@ public class XMLSitemapThread implements Job {
 	 * @throws Exception
 	 */
 	@SuppressWarnings("unchecked")
-	private void cleanHostFromSitemapFiles(Host host) throws Exception {
+	private void cleanHostFromSitemapFiles(Host host) throws Exception {	
+		
 		Folder folder = folderAPI.findFolderByPath(XML_SITEMAPS_FOLDER, host,
 				systemUser, false);
+		
 		if (InodeUtils.isSet(folder.getIdentifier())) {
 			List<com.dotmarketing.portlets.files.model.File> files = fileAPI
 					.getFolderFiles(folder, false, systemUser, true);
 			for (com.dotmarketing.portlets.files.model.File file : files) {
 				fileAPI.delete(file, systemUser, true);
 			}
+		}
+		
+		List<Contentlet> consToDel = conAPI.findContentletsByFolder(folder, systemUser, false);
+		for(Contentlet con : consToDel){
+			conAPI.delete(con, systemUser, false);
 		}
 	}
 }
