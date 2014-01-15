@@ -62,9 +62,9 @@ import com.liferay.portal.model.User;
 /**
  * This class manage the generation of the XMLSitemap<X>.xml.gz files from every
  * host in this dotCMS site
- * 
+ *
  * @author Oswaldo
- * 
+ *
  */
 public class XMLSitemapThread implements Job {
 
@@ -190,7 +190,7 @@ public class XMLSitemapThread implements Job {
 				.getAllVelocityVariablesNames();
 
 		for (Host host : hostsList) {
-			
+
 			if(host.isSystemHost())
 				continue;
 
@@ -373,9 +373,9 @@ public class XMLSitemapThread implements Job {
 				java.util.List<Folder> itemsList = new ArrayList<Folder>();
 
 				itemsList = folderAPI.findSubFolders(host, true);
-				
-				//Logger.warn(this, "Finding Subfolders for referebce [" + itemsList.size() + "]");					
-				
+
+				//Logger.warn(this, "Finding Subfolders for referebce [" + itemsList.size() + "]");
+
 				Comparator<Folder> comparator = new AssetsComparator(
 						orderDirection);
 				Collections.sort(itemsList, comparator);
@@ -384,14 +384,14 @@ public class XMLSitemapThread implements Job {
 
 				for (Folder f : itemsList) {
 					if (f instanceof Folder) {
-						//Logger.warn(this, "Folder Iteration in progress Name [" + f.getName() + "], show on Menu Indicator [" + f.isShowOnMenu() + "]");					
+						//Logger.warn(this, "Folder Iteration in progress Name [" + f.getName() + "], show on Menu Indicator [" + f.isShowOnMenu() + "]");
 						itemsList2.addAll(folderAPI.findMenuItems(f,
 								systemUser, true));
 					}
 				}
 
-				//Logger.warn(this, "List Size [" + itemsList2 + "]");					
-				
+				//Logger.warn(this, "List Size [" + itemsList2 + "]");
+
 				if (itemsList2.size() > 0) {
 
 					// /FIRST LEVEL MENU ITEMS!!!!
@@ -400,9 +400,9 @@ public class XMLSitemapThread implements Job {
 						if (itemChild instanceof Folder) {
 
 							Folder folderChild = (Folder) itemChild;
-							
-							Logger.warn(this, "Folder Iteration in progress Name [" + folderChild.getName() + "], show on Menu Indicator [" + folderChild.isShowOnMenu() + "]");					
-							
+
+							Logger.warn(this, "Folder Iteration in progress Name [" + folderChild.getName() + "], show on Menu Indicator [" + folderChild.isShowOnMenu() + "]");
+
 							// recursive method here
 							buildSubFolderSiteMapMenu(folderChild, 100, 1, 1);
 
@@ -426,13 +426,13 @@ public class XMLSitemapThread implements Job {
 							HTMLPage page = (HTMLPage) itemChild;
 							Logger.warn(this, "Folder Page Configuration " + page.getURI());
 							if (page.isLive() && !page.isDeleted()) {
-								String indexPageConfiguration = "/index."+ Config.getStringProperty("VELOCITY_PAGE_EXTENSION");								
+								String indexPageConfiguration = "/index."+ Config.getStringProperty("VELOCITY_PAGE_EXTENSION");
 								String pathToPageUrl = XMLUtils.xmlEscape("http://www."+ host.getHostname() + page.getURI());
-								
+
 								if (pathToPageUrl.endsWith(indexPageConfiguration)) {
 									pathToPageUrl = pathToPageUrl.replace(indexPageConfiguration, "");
 								}
-							
+
 								stringbuf = "<url><loc>"
 										+ pathToPageUrl
 										+ "</loc><lastmod>"
@@ -485,7 +485,7 @@ public class XMLSitemapThread implements Job {
 
 	/**
 	 * Add the subfolder site map code to the xml site map file
-	 * 
+	 *
 	 * @param stringbuf
 	 *            StringBuffer.
 	 * @param thisFolder
@@ -511,7 +511,7 @@ public class XMLSitemapThread implements Job {
 				thisFolder, orderDirection);
 
 		Identifier folderIdent = identAPI.find(thisFolder.getIdentifier());
-		
+
 		String folderChildPath = folderIdent.getURI().substring(0,
 				folderIdent.getURI().length() - 1);
 
@@ -519,17 +519,17 @@ public class XMLSitemapThread implements Job {
 				.lastIndexOf("/"));
 
 		Host host = hostAPI.findParentHost(thisFolder, systemUser, false);
-		
+
 		Identifier id = identAPI.loadFromCache(host, folderIdent.getURI()
 				+ "/index."
 				+ Config.getStringProperty("VELOCITY_PAGE_EXTENSION"));
-		
+
 		Logger.warn(this, "Performing check for folders [" + (folderIdent.getURI() + "/index." + Config.getStringProperty("VELOCITY_PAGE_EXTENSION")) + "], Identifier Check ["
-		 + (id != null) + "], Children Count [" + itemsChildrenList2.size() + "], Host Identifier [" + host.getIdentifier() + "], Identifier " + 
-		 ((id != null) ? id.getInode() : "") + "]");	
-		
-		boolean isIndexPageAlreadyConfigured = false;		
-		
+		 + (id != null) + "], Children Count [" + itemsChildrenList2.size() + "], Host Identifier [" + host.getIdentifier() + "], Identifier " +
+		 ((id != null) ? id.getInode() : "") + "]");
+
+		boolean isIndexPageAlreadyConfigured = false;
+
 		if ((id != null) && InodeUtils.isSet(id.getInode())) {
 			stringbuf = "<url><loc>"
 					+ XMLUtils
@@ -538,15 +538,15 @@ public class XMLSitemapThread implements Job {
 									+ folderIdent.getURI())
 					+ "</loc><lastmod>" + modifiedDateStringValue
 					+ "</lastmod><changefreq>daily</changefreq></url>\n";
-			
+
 			Logger.warn(this, "Writing the XMLConfiguration for Folder[" + XMLUtils
 							.xmlEscape("http://www."
 									+ host.getHostname()
 									+ folderIdent.getURI()) + "]"
-			);	
+			);
 
 			isIndexPageAlreadyConfigured = true;
-			
+
 			writeFile(stringbuf);
 			addRegistryProcessed();
 		}
@@ -601,22 +601,22 @@ public class XMLSitemapThread implements Job {
 							.getIdentifier());
 					if (page2.isLive() && !page2.isDeleted()) {
 						String indexPageConfiguration = "/index."+ Config.getStringProperty("VELOCITY_PAGE_EXTENSION");
-						
+
 						String pathToPageUrl = XMLUtils.xmlEscape("http://www." + host.getHostname() + childChild2Ident.getURI());
-						
+
 						if (pathToPageUrl.endsWith(indexPageConfiguration) && isIndexPageAlreadyConfigured) {
 							Logger.warn(this, "Index Page is already configured, skipping the process [" + pathToPageUrl + "]");
 							continue;
 						}
-						
+
 						pathToPageUrl = pathToPageUrl.replace(indexPageConfiguration, "");
-						
+
 						stringbuf = "<url><loc>" + pathToPageUrl + "</loc><lastmod>" + modifiedDateStringValue + "</lastmod><changefreq>daily</changefreq></url>\n";
-						
+
 						Logger.warn(this, "Writing the XMLConfiguration for an HTML Page with out index.dot extension [" + pathToPageUrl + "]");
-						
+
 						writeFile(stringbuf);
-						
+
 						addRegistryProcessed();
 					}
 				} else if (childChild2 instanceof com.dotmarketing.portlets.files.model.File) {
@@ -657,7 +657,7 @@ public class XMLSitemapThread implements Job {
 
 	/**
 	 * Create a new instance of the temporary file to save the index data
-	 * 
+	 *
 	 */
 	private void openFileWriter() {
 		try {
@@ -720,12 +720,12 @@ public class XMLSitemapThread implements Job {
 
 			Folder folder = folderAPI.findFolderByPath(XML_SITEMAPS_FOLDER,
 					currentHost, systemUser, true);
-					
+
 			if (!InodeUtils.isSet(folder.getIdentifier())) {
 				folder = folderAPI.createFolders(XML_SITEMAPS_FOLDER,
 						currentHost, systemUser, true);
 			}
-			
+
 			java.io.File uploadedFile = new java.io.File(sitemapName);
 			// Create the new file
 			Contentlet file = new Contentlet();
@@ -740,8 +740,8 @@ public class XMLSitemapThread implements Job {
 			if(APILocator.getPermissionAPI().doesUserHavePermission(file, PermissionAPI.PERMISSION_PUBLISH, systemUser))
 				APILocator.getVersionableAPI().setLive(file);
 			APILocator.getVersionableAPI().setWorking(file);
-			
-			
+
+
 		} catch (Exception e) {
 			Logger.error(this, e.getMessage(), e);
 		} finally {
@@ -755,7 +755,7 @@ public class XMLSitemapThread implements Job {
 
 	/**
 	 * Write inside temporary file index pages
-	 * 
+	 *
 	 * @param data
 	 */
 	private void writeFile(String data) {
@@ -783,7 +783,7 @@ public class XMLSitemapThread implements Job {
 
 	/**
 	 * Add one to the the number of pages processed counter
-	 * 
+	 *
 	 */
 	private void addRegistryProcessed() {
 		processedRegistries = processedRegistries + 1;
@@ -791,27 +791,31 @@ public class XMLSitemapThread implements Job {
 
 	/**
 	 * Delete previous XML sitemaps files from the specified host
-	 * 
+	 *
 	 * @param host
 	 * @throws Exception
 	 */
 	@SuppressWarnings("unchecked")
-	private void cleanHostFromSitemapFiles(Host host) throws Exception {	
-		
-		Folder folder = folderAPI.findFolderByPath(XML_SITEMAPS_FOLDER, host,
-				systemUser, false);
-		
-		if (InodeUtils.isSet(folder.getIdentifier())) {
-			List<com.dotmarketing.portlets.files.model.File> files = fileAPI
-					.getFolderFiles(folder, false, systemUser, true);
-			for (com.dotmarketing.portlets.files.model.File file : files) {
-				fileAPI.delete(file, systemUser, true);
+	private void cleanHostFromSitemapFiles(Host host) throws Exception {
+
+		try{
+			Folder folder = folderAPI.findFolderByPath(XML_SITEMAPS_FOLDER, host,
+					systemUser, false);
+
+			if (InodeUtils.isSet(folder.getIdentifier())) {
+				List<com.dotmarketing.portlets.files.model.File> files = fileAPI
+						.getFolderFiles(folder, false, systemUser, true);
+				for (com.dotmarketing.portlets.files.model.File file : files) {
+					fileAPI.delete(file, systemUser, true);
+				}
+				List<Contentlet> consToDel = conAPI.findContentletsByFolder(folder, systemUser, false);
+				for(Contentlet con : consToDel){
+					conAPI.delete(con, systemUser, false);
+				}
 			}
 		}
-		
-		List<Contentlet> consToDel = conAPI.findContentletsByFolder(folder, systemUser, false);
-		for(Contentlet con : consToDel){
-			conAPI.delete(con, systemUser, false);
+		catch(Exception e){
+			Logger.error(this, e.getMessage(), e);
 		}
 	}
 }
